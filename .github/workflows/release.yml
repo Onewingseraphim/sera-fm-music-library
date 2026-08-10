@@ -29,7 +29,12 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" "SERA-FM-Music-Library-Windows.zip" --title "SERA.FM Music Library ${{ github.ref_name }}" --generate-notes
+        run: |
+          if (gh release view "${{ github.ref_name }}" 2>$null) {
+            gh release upload "${{ github.ref_name }}" "SERA-FM-Music-Library-Windows.zip" --clobber
+          } else {
+            gh release create "${{ github.ref_name }}" "SERA-FM-Music-Library-Windows.zip" --title "SERA.FM Music Library ${{ github.ref_name }}" --generate-notes
+          }
       - name: Upload manual-build artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
