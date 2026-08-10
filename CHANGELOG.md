@@ -1,5 +1,27 @@
 # SERA.FM Music Library Patch Notes
 
+## 0.4.1 — Playback & Published Library Reliability
+
+### Fixed
+
+- Published songs are now independent, canonical library entries. Their complete SERA.FM metadata is kept in a manifest inside the Published Library and survives moving or deleting the original file.
+- Published MP3s carry a stable SERA.FM ID so files moved within the Published Library can be matched to their saved data again.
+- Suno imports reject prices and other numeric page fragments such as `$55` instead of treating them as lyrics.
+- Added a reliable full-window stage mode for artwork visualizers, local videos, and embedded YouTube videos.
+- YouTube playback now connects to the bottom progress, seek, play/pause, and volume controls when embedding is allowed by the video owner.
+- Update checks now compare semantic versions correctly and clearly report when the installed build is current.
+- Shortened the sidebar button to **Updates** so the label and NEW badge do not clip.
+- Removed excessive empty space around non-synchronized lyrics. The heading only says **Synced lyrics** when timing data exists.
+
+### New
+
+- Added previous, next, shuffle, repeat-all, and repeat-one player controls.
+- Added a queue drawer with add/remove controls and locally saved playlists.
+- Added a safe mass-edit side panel. It exposes only Persona, Album, Genre, Year, and Tags, and changes only explicitly enabled fields.
+- Added quick visualizer on/off and style controls directly over the Now Playing artwork.
+- Redesigned SERA.FM Cosmic as an orbital particle visualizer distinct from Radial Spectrum, while ignoring unstable lowest-frequency bins that caused the visible shelf/seam.
+- Plain lyrics now auto-scroll slowly during playback even without synchronized timing data.
+
 ## 0.3.0 — Library Player Update
 
 ### New
