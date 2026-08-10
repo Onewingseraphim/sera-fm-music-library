@@ -1,0 +1,18 @@
+SERA.FM MUSIC LIBRARY 0.4.1
+================================
+
+1. Extract the complete ZIP to a normal folder.
+2. Open "SERA.FM Music Library.exe" inside the extracted folder.
+3. Keep all DLL, PAK, locales, and resources files beside the EXE.
+
+This portable preview is not code-signed, so Windows SmartScreen may show
+"Windows protected your PC." If you downloaded this build from the official
+Onewingseraphim/sera-fm-music-library GitHub release, choose More info, then
+Run anyway.
+
+Your catalog remains in Windows application data when replacing the app
+folder with a newer version. Publishing creates managed copies and a
+.sera-fm-published-library.json recovery manifest in your Published Library.
+
+GitHub releases:
+https://github.com/Onewingseraphim/sera-fm-music-library/releases
