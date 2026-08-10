@@ -2,6 +2,8 @@ name: Build Windows release
 
 on:
   push:
+    branches:
+      - agent/combined-0.4.1
     tags:
       - "v*"
   workflow_dispatch:
@@ -21,19 +23,32 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run package:win
+      - name: Add start instructions
+        shell: pwsh
+        run: Copy-Item "START HERE.txt" "release/SERA.FM Music Library-win32-x64/START HERE.txt"
       - name: Create portable ZIP
         shell: pwsh
         run: Compress-Archive -Path "release/SERA.FM Music Library-win32-x64" -DestinationPath "SERA-FM-Music-Library-Windows.zip"
+      - name: Resolve release tag
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            "tag=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          } else {
+            $version = (Get-Content package.json | ConvertFrom-Json).version
+            "tag=v$version" >> $env:GITHUB_OUTPUT
+          }
       - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if (gh release view "${{ github.ref_name }}" 2>$null) {
-            gh release upload "${{ github.ref_name }}" "SERA-FM-Music-Library-Windows.zip" --clobber
+          $tag = "${{ steps.release.outputs.tag }}"
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag "SERA-FM-Music-Library-Windows.zip" --clobber
           } else {
-            gh release create "${{ github.ref_name }}" "SERA-FM-Music-Library-Windows.zip" --title "SERA.FM Music Library ${{ github.ref_name }}" --generate-notes
+            gh release create $tag "SERA-FM-Music-Library-Windows.zip" --target "${{ github.sha }}" --title "SERA.FM Music Library $tag" --generate-notes
           }
       - name: Upload manual-build artifact
         if: github.event_name == 'workflow_dispatch'
