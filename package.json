@@ -1,6 +1,6 @@
 {
   "name": "serafm-music-library",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "An open-source, local-first Windows music player and organizer for SERA.FM",
   "main": "main.mjs",
   "type": "module",
