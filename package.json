@@ -1,0 +1,24 @@
+{
+  "name": "serafm-music-library",
+  "version": "0.3.0",
+  "description": "An open-source, local-first Windows music player and organizer for SERA.FM",
+  "main": "main.mjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite src --host 0.0.0.0",
+    "build": "vite build src --outDir ../dist-web --emptyOutDir",
+    "start": "electron .",
+    "package:win": "electron-packager . \"SERA.FM Music Library\" --platform=win32 --arch=x64 --out=release --overwrite --asar --ignore=release --ignore=dist-web --ignore=^/\\.git --icon=assets/sera-logo.ico"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "music-metadata": "^11.9.0",
+    "node-id3": "^0.2.9"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.2",
+    "electron": "^37.2.6",
+    "happy-dom": "^20.11.2",
+    "vite": "^7.1.1"
+  }
+}

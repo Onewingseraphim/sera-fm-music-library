@@ -1,0 +1,24 @@
+const { contextBridge, ipcRenderer } = require("electron");
+
+contextBridge.exposeInMainWorld("seraLibrary", {
+  selectFolder: () => ipcRenderer.invoke("library:selectFolder"),
+  getLibrary: () => ipcRenderer.invoke("library:get"),
+  saveSong: (song) => ipcRenderer.invoke("library:saveSong", song),
+  bulkSaveSongs: (filePaths, changes) => ipcRenderer.invoke("library:bulkSaveSongs", { filePaths, changes }),
+  removeSource: (sourceId) => ipcRenderer.invoke("library:removeSource", sourceId),
+  revealFile: (filePath) => ipcRenderer.invoke("library:reveal", filePath),
+  openExternal: (url) => ipcRenderer.invoke("library:openExternal", url),
+  readSunoPage: (url) => ipcRenderer.invoke("library:readSunoPage", url),
+  selectArtwork: () => ipcRenderer.invoke("library:selectArtwork"),
+  selectVideo: () => ipcRenderer.invoke("library:selectVideo"),
+  selectLyricsFile: () => ipcRenderer.invoke("library:selectLyricsFile"),
+  openTrustedExternal: (url) => ipcRenderer.invoke("library:openTrustedExternal", url),
+  getAppInfo: () => ipcRenderer.invoke("library:getAppInfo"),
+  checkUpdates: () => ipcRenderer.invoke("library:checkUpdates"),
+  getSettings: () => ipcRenderer.invoke("library:getSettings"),
+  saveSettings: (settings) => ipcRenderer.invoke("library:saveSettings", settings),
+  selectPublishFolder: () => ipcRenderer.invoke("library:selectPublishFolder"),
+  publishSongs: (songs) => ipcRenderer.invoke("library:publishSongs", songs),
+  backup: () => ipcRenderer.invoke("library:backup"),
+  restore: () => ipcRenderer.invoke("library:restore"),
+});

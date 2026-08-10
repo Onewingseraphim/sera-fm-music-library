@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>SERA.FM Music Library</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img src="../assets/sera-logo.png" alt="" class="brand-mark" />
+          <div><strong>SERA.FM</strong><span>Music Library</span></div>
+        </div>
+        <button class="primary wide" id="addFolderButton">＋ Add music folder</button>
+
+        <nav class="nav-list" aria-label="Library sections">
+          <button class="nav-item" data-view="now-playing"><span>Now Playing</span><b id="playingIndicator">—</b></button>
+          <button class="nav-item active" data-filter="all"><span>Library</span><b id="allCount">0</b></button>
+          <button class="nav-item" data-filter="unorganized"><span>Unorganized</span><b id="unorganizedCount">0</b></button>
+          <button class="nav-item" data-filter="favorites"><span>Favorites</span><b id="favoritesCount">0</b></button>
+          <button class="nav-item" data-filter="published"><span>Published</span><b id="publishedCount">0</b></button>
+        </nav>
+
+        <div class="side-divider"></div>
+        <section class="side-section" data-section="personas">
+          <button class="side-heading" data-collapse="personas"><span><i>⌄</i> Personas</span><b id="personaSectionCount">0</b></button>
+          <div id="personaList" class="dynamic-list collapsible-content"></div>
+        </section>
+        <div class="side-divider"></div>
+        <section class="side-section" data-section="albums">
+          <button class="side-heading" data-collapse="albums"><span><i>⌄</i> Albums</span><b id="albumSectionCount">0</b></button>
+          <div id="albumList" class="dynamic-list collapsible-content"></div>
+        </section>
+        <div class="side-divider"></div>
+        <section class="side-section source-section" data-section="folders">
+          <button class="side-heading" data-collapse="folders"><span><i>⌄</i> Music folders</span><b id="folderSectionCount">0</b></button>
+          <div id="sourceList" class="source-list collapsible-content"></div>
+        </section>
+
+        <div class="sidebar-footer">
+          <button class="settings-button" id="updatesButton"><span>✦</span> Updates &amp; Patch Notes <b id="updateBadge" class="update-badge hidden">NEW</b></button>
+          <button class="settings-button" id="settingsButton"><span>⚙</span> Settings</button>
+          <div class="footer-links"><button class="text-button" id="backupButton">Back up</button><button class="text-button" id="restoreButton">Restore</button></div>
+          <small id="sidebarVersion">Version 0.3.0</small>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section id="libraryPage" class="view-page">
+          <header class="topbar">
+            <div><p class="eyebrow">YOUR LOCAL COLLECTION</p><h1 id="pageTitle">Library</h1></div>
+            <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search songs, personas, albums, tags…" /></label>
+            <button class="secondary" id="rescanButton">↻ Rescan folders</button>
+          </header>
+          <section class="stats-bar">
+            <div><strong id="songTotal">0</strong><span>songs</span></div><div><strong id="personaTotal">0</strong><span>personas</span></div><div><strong id="albumTotal">0</strong><span>albums</span></div><div><strong id="durationTotal">0h 0m</strong><span>play time</span></div>
+          </section>
+          <section id="bulkBar" class="bulk-bar hidden" aria-live="polite">
+            <strong><span id="selectedCount">0</span> selected</strong><button class="secondary compact" id="selectVisibleButton">Select visible</button><button class="secondary compact" id="clearSelectionButton">Clear</button><span class="bulk-spacer"></span><button class="secondary compact" id="bulkEditButton">Edit metadata</button><button class="primary compact" id="bulkPublishButton">Publish copies</button>
+          </section>
+          <section id="emptyState" class="empty-state hidden">
+            <div class="empty-art"><img src="../assets/sera-logo.png" alt="" /></div><p class="eyebrow">START YOUR LIBRARY</p><h2>Bring your music collection together.</h2><p>Choose a folder containing your music. Original files stay in place while organization and edits are stored safely in the catalog.</p><button class="primary" id="emptyAddFolderButton">Choose a music folder</button>
+          </section>
+          <section id="libraryView" class="library-view hidden">
+            <div class="table-heading"><span class="selection-heading"><input id="selectAllCheckbox" type="checkbox" aria-label="Select all visible songs" /> SONG</span><span>PERSONA</span><span>ALBUM</span><span>GENRE</span><span>TIME</span><span></span></div>
+            <div id="songList" class="song-list"></div><div id="noResults" class="no-results hidden">No songs match this view.</div>
+          </section>
+        </section>
+
+        <section id="nowPlayingPage" class="view-page hidden">
+          <header class="page-header"><div><p class="eyebrow">SERA.FM PLAYER</p><h1>Now Playing</h1></div><button class="secondary" id="editPlayingButton">Edit song details</button></header>
+          <section id="nowPlayingEmpty" class="empty-state"><div class="empty-art"><img src="../assets/sera-logo.png" alt="" /></div><h2>Nothing is playing yet.</h2><p>Choose a song from your Library to open its full artwork, lyrics, metadata, video and visualizer experience.</p><button class="primary" data-filter="all">Open Library</button></section>
+          <div id="nowPlayingContent" class="now-layout hidden">
+            <section class="now-hero">
+              <div class="media-stage" id="mediaStage">
+                <img id="nowArtwork" class="now-artwork" alt="Current song artwork" />
+                <canvas id="visualizerCanvas" aria-label="Audio visualizer"></canvas>
+                <video id="localVideoPlayer" class="stage-video hidden" controls></video>
+                <div id="youtubeStage" class="youtube-player hidden"><div id="youtubePlayerHost"></div></div>
+                <div class="visualizer-label"><span id="visualizerStatus">Visualizer · SERA.FM Player</span></div>
+              </div>
+              <div class="now-summary">
+                <div class="now-title-row"><div><p class="eyebrow" id="nowPersona">UNASSIGNED PERSONA</p><h2 id="nowTitle">Song title</h2><p id="nowArtist" class="now-artist"></p></div><button id="nowFavoriteButton" class="favorite-button" aria-label="Toggle favorite">☆</button></div>
+                <div id="nowChips" class="chip-row"></div>
+                <div class="source-switcher" id="sourceSwitcher"><button class="source-button active" data-media-source="audio">Audio</button><button class="source-button" data-media-source="video">Local video</button><button class="source-button" data-media-source="youtube">YouTube</button></div>
+                <div class="now-actions"><button class="primary" id="nowPlayButton">▶ Play audio</button><button class="secondary" id="nowOpenSunoButton">Open Suno</button><button class="secondary" id="nowRevealButton">Show file</button></div>
+                <dl class="detail-grid" id="nowDetails"></dl>
+              </div>
+            </section>
+            <section class="now-columns">
+              <article class="content-card lyrics-card">
+                <div class="card-heading"><div><p class="eyebrow">LYRICS</p><h3>Synced lyrics</h3></div><div class="lyrics-tools"><button class="text-button" id="lyricsMinus">A−</button><button class="text-button" id="lyricsPlus">A＋</button><button class="text-button" id="lyricsAutoScroll">Auto-scroll: On</button></div></div>
+                <div id="lyricsDisplay" class="lyrics-display"></div>
+              </article>
+              <aside class="now-side">
+                <article class="content-card"><p class="eyebrow">STYLE PROMPT</p><p id="nowPrompt" class="long-copy">No style prompt saved.</p></article>
+                <article class="content-card"><p class="eyebrow">NOTES</p><p id="nowNotes" class="long-copy">No notes saved.</p></article>
+              </aside>
+            </section>
+          </div>
+        </section>
+
+        <section id="updatesPage" class="view-page hidden">
+          <header class="page-header"><div><p class="eyebrow">APPLICATION</p><h1>Updates &amp; Patch Notes</h1></div><button class="primary" id="checkUpdatesButton">Check for updates</button></header>
+          <section class="update-overview content-card"><img src="../assets/sera-logo.png" alt="" /><div><p class="eyebrow">INSTALLED VERSION</p><h2 id="installedVersion">0.3.0</h2><p id="updateStatusText">You are running the current installed build.</p></div><div class="update-actions"><button class="secondary hidden" id="openReleaseButton">Open download page</button><button class="text-button" id="openRepositoryButton">View project on GitHub</button></div></section>
+          <section class="content-card patch-notes-card"><div class="card-heading"><div><p class="eyebrow">VERSION HISTORY</p><h3>Patch notes</h3></div></div><div id="patchNotes" class="patch-notes"></div></section>
+        </section>
+      </main>
+
+      <aside id="editorPanel" class="editor-panel" aria-hidden="true">
+        <div class="editor-header"><div><p class="eyebrow">SONG DETAILS</p><h2>Edit song</h2></div><button class="icon-button" id="closeEditorButton" aria-label="Close editor">×</button></div>
+        <div class="editor-scroll">
+          <div class="cover-wrap"><button id="editorCover" class="editor-cover" type="button"><span>♫</span></button><div class="cover-copy"><strong id="editorFileName">song.mp3</strong><button class="text-button" id="chooseArtworkButton">Change artwork</button><button class="text-button subdued" id="revealButton">Show original in folder</button></div></div>
+          <form id="songForm"><div class="form-grid">
+            <label class="field full"><span>Title</span><input id="fieldTitle" name="title" /></label><label class="field"><span>Artist</span><input id="fieldArtist" name="artist" /></label><label class="field"><span>Persona / voice</span><input id="fieldPersona" name="persona" list="personaOptions" /></label><label class="field"><span>Album</span><input id="fieldAlbum" name="album" list="albumOptions" /></label><label class="field"><span>Genre</span><input id="fieldGenre" name="genre" /></label><label class="field"><span>Year</span><input id="fieldYear" name="year" inputmode="numeric" /></label><label class="field"><span>Track</span><input id="fieldTrack" name="track" inputmode="numeric" /></label><label class="field full"><span>Tags <small>separate with commas</small></span><input id="fieldTags" name="tags" /></label>
+            <div class="field full"><span>Suno song or share link</span><div class="input-actions"><input id="fieldSunoUrl" name="sunoUrl" type="url" placeholder="https://suno.com/song/… or https://suno.com/s/…" /><button class="secondary compact" id="openSunoButton" type="button">Open</button><button class="secondary compact" id="syncSunoButton" type="button">Read page</button></div></div>
+            <label class="field full"><span>Style prompt</span><textarea id="fieldPrompt" name="prompt" rows="4"></textarea></label>
+            <label class="field full lyrics-field"><span>Lyrics</span><textarea id="fieldLyrics" name="lyrics" rows="12"></textarea></label>
+            <div class="field full"><span>Synchronized lyrics</span><div class="input-actions"><input id="syncedLyricsStatus" readonly value="No timing data" /><button class="secondary compact" id="importLyricsButton" type="button">Import LRC/VTT/SRT</button><button class="secondary compact" id="clearLyricsTimingButton" type="button">Clear</button></div></div>
+            <label class="field"><span>Lyrics offset (milliseconds)</span><input id="fieldLyricsOffsetMs" name="lyricsOffsetMs" type="number" step="10" /></label><div></div>
+            <div class="field full"><span>Local video</span><div class="input-actions"><input id="fieldLocalVideoPath" name="localVideoPath" readonly placeholder="No video attached" /><button class="secondary compact" id="chooseVideoButton" type="button">Choose video</button><button class="secondary compact" id="clearVideoButton" type="button">Clear</button></div></div>
+            <label class="field full"><span>YouTube link</span><input id="fieldYoutubeUrl" name="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=…" /></label><label class="field"><span>Video offset (milliseconds)</span><input id="fieldVideoOffsetMs" name="videoOffsetMs" type="number" step="10" /></label><div></div>
+            <label class="field full"><span>Notes</span><textarea id="fieldNotes" name="notes" rows="4"></textarea></label><label class="favorite-toggle full"><input id="fieldFavorite" name="favorite" type="checkbox" /><span>★ Mark as favorite</span></label>
+          </div></form>
+          <div class="published-card hidden" id="publishedCard"><p class="eyebrow">PUBLISHED COPY</p><strong id="publishedPath"></strong><button class="text-button" id="revealPublishedButton">Show published copy</button></div>
+          <div class="file-info"><p class="eyebrow">ORIGINAL FILE</p><dl><div><dt>Location</dt><dd id="infoLocation"></dd></div><div><dt>Format</dt><dd id="infoFormat"></dd></div></dl></div>
+        </div>
+        <div class="editor-actions"><span id="saveStatus"></span><button class="secondary" id="publishSongButton">Publish copy</button><button class="primary" id="saveButton">Save changes</button></div>
+      </aside>
+    </div>
+
+    <footer id="player" class="player hidden"><button class="play-button" id="playPauseButton">▶</button><button class="player-song" id="openNowPlayingButton"><strong id="playerTitle">Nothing playing</strong><span id="playerArtist"></span></button><span id="currentTime">0:00</span><input id="seekBar" type="range" min="0" max="100" value="0" /><span id="totalTime">0:00</span><input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" /><audio id="audioPlayer"></audio></footer>
+
+    <div id="bulkModal" class="modal-overlay hidden"><section class="modal-card small-modal"><div class="modal-header"><div><p class="eyebrow">MASS EDIT</p><h2>Edit selected songs</h2></div><button class="icon-button" data-close-modal="bulkModal">×</button></div><p class="modal-intro">Enable only the fields you want to change.</p><div class="bulk-fields"><label class="apply-field"><input type="checkbox" data-bulk-apply="persona" /><span>Persona</span><input id="bulkPersona" list="personaOptions" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="album" /><span>Album</span><input id="bulkAlbum" list="albumOptions" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="genre" /><span>Genre</span><input id="bulkGenre" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="year" /><span>Year</span><input id="bulkYear" disabled /></label></div><div class="modal-actions"><button class="secondary" data-close-modal="bulkModal">Cancel</button><button class="primary" id="applyBulkButton">Apply changes</button></div></section></div>
+    <div id="sunoModal" class="modal-overlay hidden"><section class="modal-card"><div class="modal-header"><div><p class="eyebrow">SUNO PAGE IMPORT</p><h2>Review detected information</h2></div><button class="icon-button" data-close-modal="sunoModal">×</button></div><p class="modal-intro">Choose which fields should be copied into this catalog entry.</p><div id="sunoFieldList" class="sync-fields"></div><div class="modal-actions"><button class="secondary" data-close-modal="sunoModal">Cancel</button><button class="primary" id="applySunoButton">Import selected fields</button></div></section></div>
+    <div id="settingsModal" class="modal-overlay hidden"><section class="modal-card settings-modal"><div class="modal-header"><div><p class="eyebrow">APPLICATION</p><h2>Settings</h2></div><button class="icon-button" data-close-modal="settingsModal">×</button></div><div class="settings-body">
+      <section class="settings-section"><div class="settings-heading"><h3>Audio output</h3><p>Choose any playback device currently available in Windows.</p></div><label class="field"><span>Output device</span><div class="input-actions"><select id="audioOutputSelect"></select><button class="secondary compact" id="refreshDevicesButton" type="button">Refresh</button><button class="secondary compact" id="testOutputButton" type="button">Test</button></div></label><label class="range-setting"><span>Default volume</span><input id="defaultVolumeRange" type="range" min="0" max="1" step="0.01" /><output id="defaultVolumeOutput">85%</output></label><label class="check-setting"><input id="rememberVolumeCheckbox" type="checkbox" /><span>Remember the last player volume</span></label></section>
+      <section class="settings-section"><div class="settings-heading"><h3>Visualizer</h3><p>Local audio and attached videos react directly to the SERA.FM player signal.</p></div><label class="field"><span>Style</span><select id="visualizerTypeSelect"><option value="cosmic">SERA.FM Cosmic</option><option value="bars">Spectrum bars</option><option value="mirror">Mirrored spectrum</option><option value="wave">Waveform</option><option value="radial">Radial spectrum</option><option value="off">Off</option></select></label><label class="range-setting"><span>Sensitivity</span><input id="visualizerSensitivityRange" type="range" min="0.4" max="2.5" step="0.05" /><output id="visualizerSensitivityOutput">1.0×</output></label><label class="range-setting"><span>Smoothing</span><input id="visualizerSmoothingRange" type="range" min="0" max="0.95" step="0.01" /><output id="visualizerSmoothingOutput">82%</output></label><label class="check-setting"><input id="visualizerArtworkCheckbox" type="checkbox" /><span>Show artwork behind the visualizer</span></label></section>
+      <section class="settings-section"><div class="settings-heading"><h3>Organization</h3><p>Choose which missing fields place a song in Unorganized.</p></div><div class="check-grid"><label class="check-setting"><input type="checkbox" data-unorganized-field="persona" />Persona</label><label class="check-setting"><input type="checkbox" data-unorganized-field="album" />Album</label><label class="check-setting"><input type="checkbox" data-unorganized-field="genre" />Genre</label><label class="check-setting"><input type="checkbox" data-unorganized-field="year" />Year</label><label class="check-setting"><input type="checkbox" data-unorganized-field="artwork" />Artwork</label><label class="check-setting"><input type="checkbox" data-unorganized-field="lyrics" />Lyrics</label></div><div class="button-row"><button class="secondary" id="expandAllSectionsButton" type="button">Expand sidebar sections</button><button class="secondary" id="collapseAllSectionsButton" type="button">Collapse sidebar sections</button></div></section>
+      <section class="settings-section"><div class="settings-heading"><h3>Published library</h3><p>Published songs are managed copies. Originals remain untouched.</p></div><label class="field"><span>Published library folder</span><div class="input-actions"><input id="publishFolderInput" readonly placeholder="Choose a folder…" /><button class="secondary compact" id="choosePublishFolderButton" type="button">Choose</button></div></label><label class="field"><span>If a filename exists</span><select id="duplicateBehaviorSelect"><option value="replace">Replace published copy</option><option value="number">Create numbered copy</option><option value="skip">Skip song</option></select></label><label class="check-setting"><input id="confirmOverwriteCheckbox" type="checkbox" />Confirm before publishing</label><label class="check-setting"><input id="autoScanCheckbox" type="checkbox" />Scan music folders at startup</label></section>
+      <section class="settings-section theme-section"><div class="settings-heading"><h3>Theme</h3><p>SERA.FM Cosmic is the default. Select a swatch and adjust RGB.</p></div><div class="theme-swatches"><button class="theme-swatch active" data-theme-key="primary"><i></i><span>Primary</span></button><button class="theme-swatch" data-theme-key="secondary"><i></i><span>Secondary</span></button><button class="theme-swatch" data-theme-key="glow"><i></i><span>Glow</span></button><button class="theme-swatch" data-theme-key="background"><i></i><span>Background</span></button></div><div class="rgb-editor"><div class="rgb-title"><strong id="rgbEditorTitle">Primary</strong><input id="themeColorInput" type="color" /></div><label><span>R</span><input id="redRange" type="range" min="0" max="255" /><output id="redOutput">0</output></label><label><span>G</span><input id="greenRange" type="range" min="0" max="255" /><output id="greenOutput">0</output></label><label><span>B</span><input id="blueRange" type="range" min="0" max="255" /><output id="blueOutput">0</output></label></div><button class="secondary" id="resetThemeButton">Reset SERA.FM Cosmic theme</button></section>
+      <section class="settings-section"><div class="settings-heading"><h3>Catalog protection</h3><p>Backups include organization, settings, lyrics, video links and published-file links—not media files.</p></div><div class="button-row"><button class="secondary" id="settingsBackupButton">Back up catalog</button><button class="secondary" id="settingsRestoreButton">Restore backup</button></div></section>
+    </div><div class="modal-actions"><span id="settingsStatus"></span><button class="secondary" data-close-modal="settingsModal">Cancel</button><button class="primary" id="saveSettingsButton">Save settings</button></div></section></div>
+
+    <datalist id="personaOptions"></datalist><datalist id="albumOptions"></datalist><div id="toast" class="toast" role="status"></div>
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>
