@@ -41,10 +41,10 @@
         </section>
 
         <div class="sidebar-footer">
-          <button class="settings-button" id="updatesButton"><span>✦</span> Updates &amp; Patch Notes <b id="updateBadge" class="update-badge hidden">NEW</b></button>
+          <button class="settings-button" id="updatesButton"><span>✦</span> Updates <b id="updateBadge" class="update-badge hidden">NEW</b></button>
           <button class="settings-button" id="settingsButton"><span>⚙</span> Settings</button>
           <div class="footer-links"><button class="text-button" id="backupButton">Back up</button><button class="text-button" id="restoreButton">Restore</button></div>
-          <small id="sidebarVersion">Version 0.3.0</small>
+          <small id="sidebarVersion">Version 0.4.1</small>
         </div>
       </aside>
 
@@ -81,6 +81,7 @@
                 <video id="localVideoPlayer" class="stage-video hidden" controls></video>
                 <div id="youtubeStage" class="youtube-player hidden"><div id="youtubePlayerHost"></div></div>
                 <div class="visualizer-label"><span id="visualizerStatus">Visualizer · SERA.FM Player</span></div>
+                <div class="stage-tools"><button class="stage-tool hidden" id="openYoutubeExternalButton">Open YouTube</button><button class="stage-tool" id="visualizerToggleButton" title="Toggle visualizer">Visuals: On</button><select class="stage-tool" id="quickVisualizerSelect" title="Visualizer type"><option value="cosmic">Cosmic</option><option value="radial">Radial</option><option value="bars">Bars</option><option value="mirror">Mirror</option><option value="wave">Wave</option></select><button class="stage-tool" id="stageFullscreenButton" title="Toggle fullscreen">⛶ Fullscreen</button></div>
               </div>
               <div class="now-summary">
                 <div class="now-title-row"><div><p class="eyebrow" id="nowPersona">UNASSIGNED PERSONA</p><h2 id="nowTitle">Song title</h2><p id="nowArtist" class="now-artist"></p></div><button id="nowFavoriteButton" class="favorite-button" aria-label="Toggle favorite">☆</button></div>
@@ -92,7 +93,7 @@
             </section>
             <section class="now-columns">
               <article class="content-card lyrics-card">
-                <div class="card-heading"><div><p class="eyebrow">LYRICS</p><h3>Synced lyrics</h3></div><div class="lyrics-tools"><button class="text-button" id="lyricsMinus">A−</button><button class="text-button" id="lyricsPlus">A＋</button><button class="text-button" id="lyricsAutoScroll">Auto-scroll: On</button></div></div>
+                <div class="card-heading"><div><p class="eyebrow">LYRICS</p><h3 id="lyricsHeading">Lyrics</h3></div><div class="lyrics-tools"><button class="text-button" id="lyricsMinus">A−</button><button class="text-button" id="lyricsPlus">A＋</button><button class="text-button" id="lyricsAutoScroll">Auto-scroll: On</button></div></div>
                 <div id="lyricsDisplay" class="lyrics-display"></div>
               </article>
               <aside class="now-side">
@@ -105,7 +106,7 @@
 
         <section id="updatesPage" class="view-page hidden">
           <header class="page-header"><div><p class="eyebrow">APPLICATION</p><h1>Updates &amp; Patch Notes</h1></div><button class="primary" id="checkUpdatesButton">Check for updates</button></header>
-          <section class="update-overview content-card"><img src="../assets/sera-logo.png" alt="" /><div><p class="eyebrow">INSTALLED VERSION</p><h2 id="installedVersion">0.3.0</h2><p id="updateStatusText">You are running the current installed build.</p></div><div class="update-actions"><button class="secondary hidden" id="openReleaseButton">Open download page</button><button class="text-button" id="openRepositoryButton">View project on GitHub</button></div></section>
+          <section class="update-overview content-card"><img src="../assets/sera-logo.png" alt="" /><div><p class="eyebrow">INSTALLED VERSION</p><h2 id="installedVersion">0.4.1</h2><p id="updateStatusText">You are running the current installed build.</p></div><div class="update-actions"><button class="secondary hidden" id="openReleaseButton">Open download page</button><button class="text-button" id="openRepositoryButton">View project on GitHub</button></div></section>
           <section class="content-card patch-notes-card"><div class="card-heading"><div><p class="eyebrow">VERSION HISTORY</p><h3>Patch notes</h3></div></div><div id="patchNotes" class="patch-notes"></div></section>
         </section>
       </main>
@@ -130,11 +131,29 @@
         </div>
         <div class="editor-actions"><span id="saveStatus"></span><button class="secondary" id="publishSongButton">Publish copy</button><button class="primary" id="saveButton">Save changes</button></div>
       </aside>
+
+      <aside id="massEditorPanel" class="editor-panel mass-editor-panel" aria-hidden="true">
+        <div class="editor-header"><div><p class="eyebrow">MASS EDIT</p><h2>Edit <span id="massEditCount">0</span> songs</h2></div><button class="icon-button" id="closeMassEditorButton" aria-label="Close mass editor">×</button></div>
+        <div class="editor-scroll"><p class="modal-intro">Only enabled fields will change. Song titles, artists, lyrics, artwork, links, and notes are protected.</p><div class="bulk-fields side-bulk-fields">
+          <label class="apply-field"><input type="checkbox" data-mass-apply="persona" /><span>Persona</span><input id="massPersona" list="personaOptions" disabled /></label>
+          <label class="apply-field"><input type="checkbox" data-mass-apply="album" /><span>Album</span><input id="massAlbum" list="albumOptions" disabled /></label>
+          <label class="apply-field"><input type="checkbox" data-mass-apply="genre" /><span>Genre</span><input id="massGenre" disabled /></label>
+          <label class="apply-field"><input type="checkbox" data-mass-apply="year" /><span>Year</span><input id="massYear" inputmode="numeric" disabled /></label>
+          <label class="apply-field"><input type="checkbox" data-mass-apply="tags" /><span>Tags</span><input id="massTags" placeholder="comma-separated tags" disabled /></label>
+        </div></div>
+        <div class="editor-actions"><span id="massEditStatus"></span><button class="secondary" id="cancelMassEditButton">Cancel</button><button class="primary" id="applyMassEditButton">Apply enabled fields</button></div>
+      </aside>
+
+      <aside id="queuePanel" class="queue-panel" aria-hidden="true">
+        <div class="editor-header"><div><p class="eyebrow">NOW PLAYING</p><h2>Queue</h2></div><button class="icon-button" id="closeQueueButton" aria-label="Close queue">×</button></div>
+        <div class="queue-toolbar"><button class="secondary compact" id="clearQueueButton">Clear queue</button></div>
+        <div id="queueList" class="queue-list"></div>
+        <div class="playlist-box"><p class="eyebrow">PLAYLISTS</p><div class="input-actions"><input id="playlistNameInput" placeholder="Playlist name" /><button class="primary compact" id="savePlaylistButton">Save queue</button></div><div id="playlistList" class="playlist-list"></div></div>
+      </aside>
     </div>
 
-    <footer id="player" class="player hidden"><button class="play-button" id="playPauseButton">▶</button><button class="player-song" id="openNowPlayingButton"><strong id="playerTitle">Nothing playing</strong><span id="playerArtist"></span></button><span id="currentTime">0:00</span><input id="seekBar" type="range" min="0" max="100" value="0" /><span id="totalTime">0:00</span><input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" /><audio id="audioPlayer"></audio></footer>
+    <footer id="player" class="player hidden"><button class="player-icon" id="shuffleButton" title="Shuffle">⇄</button><button class="player-icon" id="previousButton" title="Previous">|◀</button><button class="play-button" id="playPauseButton">▶</button><button class="player-icon" id="nextButton" title="Next">▶|</button><button class="player-icon" id="repeatButton" title="Repeat off">↻</button><button class="player-song" id="openNowPlayingButton"><strong id="playerTitle">Nothing playing</strong><span id="playerArtist"></span></button><span id="currentTime">0:00</span><input id="seekBar" type="range" min="0" max="100" value="0" /><span id="totalTime">0:00</span><input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" /><button class="player-icon" id="queueButton" title="Open queue">☷</button><audio id="audioPlayer"></audio></footer>
 
-    <div id="bulkModal" class="modal-overlay hidden"><section class="modal-card small-modal"><div class="modal-header"><div><p class="eyebrow">MASS EDIT</p><h2>Edit selected songs</h2></div><button class="icon-button" data-close-modal="bulkModal">×</button></div><p class="modal-intro">Enable only the fields you want to change.</p><div class="bulk-fields"><label class="apply-field"><input type="checkbox" data-bulk-apply="persona" /><span>Persona</span><input id="bulkPersona" list="personaOptions" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="album" /><span>Album</span><input id="bulkAlbum" list="albumOptions" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="genre" /><span>Genre</span><input id="bulkGenre" disabled /></label><label class="apply-field"><input type="checkbox" data-bulk-apply="year" /><span>Year</span><input id="bulkYear" disabled /></label></div><div class="modal-actions"><button class="secondary" data-close-modal="bulkModal">Cancel</button><button class="primary" id="applyBulkButton">Apply changes</button></div></section></div>
     <div id="sunoModal" class="modal-overlay hidden"><section class="modal-card"><div class="modal-header"><div><p class="eyebrow">SUNO PAGE IMPORT</p><h2>Review detected information</h2></div><button class="icon-button" data-close-modal="sunoModal">×</button></div><p class="modal-intro">Choose which fields should be copied into this catalog entry.</p><div id="sunoFieldList" class="sync-fields"></div><div class="modal-actions"><button class="secondary" data-close-modal="sunoModal">Cancel</button><button class="primary" id="applySunoButton">Import selected fields</button></div></section></div>
     <div id="settingsModal" class="modal-overlay hidden"><section class="modal-card settings-modal"><div class="modal-header"><div><p class="eyebrow">APPLICATION</p><h2>Settings</h2></div><button class="icon-button" data-close-modal="settingsModal">×</button></div><div class="settings-body">
       <section class="settings-section"><div class="settings-heading"><h3>Audio output</h3><p>Choose any playback device currently available in Windows.</p></div><label class="field"><span>Output device</span><div class="input-actions"><select id="audioOutputSelect"></select><button class="secondary compact" id="refreshDevicesButton" type="button">Refresh</button><button class="secondary compact" id="testOutputButton" type="button">Test</button></div></label><label class="range-setting"><span>Default volume</span><input id="defaultVolumeRange" type="range" min="0" max="1" step="0.01" /><output id="defaultVolumeOutput">85%</output></label><label class="check-setting"><input id="rememberVolumeCheckbox" type="checkbox" /><span>Remember the last player volume</span></label></section>

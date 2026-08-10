@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("seraLibrary", {
   getLibrary: () => ipcRenderer.invoke("library:get"),
   saveSong: (song) => ipcRenderer.invoke("library:saveSong", song),
   bulkSaveSongs: (filePaths, changes) => ipcRenderer.invoke("library:bulkSaveSongs", { filePaths, changes }),
+  savePlaylists: (playlists) => ipcRenderer.invoke("library:savePlaylists", playlists),
   removeSource: (sourceId) => ipcRenderer.invoke("library:removeSource", sourceId),
   revealFile: (filePath) => ipcRenderer.invoke("library:reveal", filePath),
   openExternal: (url) => ipcRenderer.invoke("library:openExternal", url),
@@ -21,4 +22,6 @@ contextBridge.exposeInMainWorld("seraLibrary", {
   publishSongs: (songs) => ipcRenderer.invoke("library:publishSongs", songs),
   backup: () => ipcRenderer.invoke("library:backup"),
   restore: () => ipcRenderer.invoke("library:restore"),
+  toggleFullscreen: () => ipcRenderer.invoke("window:toggleFullscreen"),
+  exitFullscreen: () => ipcRenderer.invoke("window:exitFullscreen"),
 });

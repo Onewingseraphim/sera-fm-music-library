@@ -19,15 +19,16 @@ if (!window.seraLibrary && new URLSearchParams(location.search).has("preview")) 
   ];
   window.seraLibrary = {
     selectFolder: async () => null, getLibrary: async () => ({ songs, sources: [{ id: "preview", name: "Example Music", path: "C:\\Music" }], missingSources: [], settings: DEFAULT_SETTINGS }),
-    saveSong: async () => ({}), bulkSaveSongs: async (_paths, changes) => changes, removeSource: async () => ({ songs, sources: [], missingSources: [], settings: DEFAULT_SETTINGS }),
+    saveSong: async () => ({}), bulkSaveSongs: async (_paths, changes) => changes, savePlaylists: async (items) => items, removeSource: async () => ({ songs, sources: [], missingSources: [], settings: DEFAULT_SETTINGS }),
     revealFile: async () => {}, openExternal: async () => true, openTrustedExternal: async () => true,
     readSunoPage: async () => ({ fields: { title: "Example Song", persona: "Example Persona", prompt: "Example style prompt", lyrics: "Example lyric text" } }),
     selectArtwork: async () => null, selectVideo: async () => null, selectLyricsFile: async () => null,
     getSettings: async () => DEFAULT_SETTINGS, saveSettings: async (settings) => settings, selectPublishFolder: async () => ({ ...DEFAULT_SETTINGS, publishFolder: "C:\\Published Music" }),
     publishSongs: async (items) => ({ results: items.map((song) => ({ filePath: song.filePath, status: "published", path: `C:\\Published Music\\${song.fileName}` })), settings: DEFAULT_SETTINGS }),
     backup: async () => true, restore: async () => null,
-    getAppInfo: async () => ({ version: "0.3.0", repositoryUrl: "https://github.com/Onewingseraphim/sera-fm-music-library", releasesUrl: "https://github.com/Onewingseraphim/sera-fm-music-library/releases", changelog: "# SERA.FM Music Library\n\n## 0.3.0\n\n### New\n- Now Playing experience\n- Video and synchronized lyrics\n- Built-in visualizers" }),
-    checkUpdates: async () => ({ available: false, currentVersion: "0.3.0", message: "Preview mode" }),
+    getAppInfo: async () => ({ version: "0.4.1", repositoryUrl: "https://github.com/Onewingseraphim/sera-fm-music-library", releasesUrl: "https://github.com/Onewingseraphim/sera-fm-music-library/releases", changelog: "# SERA.FM Music Library\n\n## 0.4.1\n\n### New\n- Reliable published library\n- Full player controls\n- Queue and playlists" }),
+    checkUpdates: async () => ({ available: false, currentVersion: "0.4.1", message: "Preview mode" }),
+    toggleFullscreen: async () => true, exitFullscreen: async () => false,
   };
 }
 
@@ -38,6 +39,7 @@ const state = {
   view: "library", activeFilter: { type: "all", value: "" }, search: "", selectedSong: null, selectedIds: new Set(),
   playingSong: null, mediaSource: "audio", draftArtwork: "", draftSyncedLyrics: [], draftVideoUrl: "", pendingSunoFields: {},
   themeEditingKey: "primary", lyricsAutoScroll: true, lyricsFontSize: 24, appInfo: null, latestReleaseUrl: "",
+  queue: [], queueIndex: -1, playlists: [], shuffle: false, repeatMode: "off", massEditorVisible: false, lastVisualizerType: "cosmic",
 };
 
 const audio = $("#audioPlayer");
@@ -49,6 +51,7 @@ let videoNode = null;
 let visualFrame = 0;
 let youtubePlayer = null;
 let youtubeApiPromise = null;
+let plainLyricsLastScroll = 0;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -119,12 +122,15 @@ function renderSidebar() {
 
 function renderSelection() {
   $("#bulkBar").classList.toggle("hidden", !state.selectedIds.size); $("#selectedCount").textContent = state.selectedIds.size;
+  $("#massEditCount").textContent = state.selectedIds.size;
   const visible = getFilteredSongs(); $("#selectAllCheckbox").checked = visible.length > 0 && visible.every((song) => state.selectedIds.has(song.id));
+  if (state.selectedIds.size > 1 && !state.massEditorVisible) openMassEditor();
+  else if (state.selectedIds.size < 2 && state.massEditorVisible) closeMassEditor();
 }
 
 function renderSongList() {
   const songs = getFilteredSongs();
-  $("#songList").innerHTML = songs.map((song) => `<div class="song-row ${state.selectedIds.has(song.id) ? "selected" : ""}" data-song-id="${escapeHtml(song.id)}" tabindex="0"><div class="song-cell"><input class="song-check" data-select-id="${escapeHtml(song.id)}" type="checkbox" ${state.selectedIds.has(song.id) ? "checked" : ""}/><div class="song-cover">${song.artwork ? `<img src="${song.artwork}" alt="" />` : "♫"}</div><div class="song-copy"><strong>${song.favorite ? '<span class="favorite-star">★</span>' : ""}${escapeHtml(song.title || song.fileName)}</strong><span>${song.publishedPath ? '<i class="published-dot"></i>' : ""}${escapeHtml(song.artist || song.fileName)}</span></div></div><span class="${song.persona ? "" : "missing"}">${escapeHtml(song.persona || "Unassigned")}</span><span class="${song.album ? "" : "missing"}">${escapeHtml(song.album || "No album")}</span><span>${escapeHtml(song.genre || "—")}</span><span>${formatTime(song.duration)}</span><button class="row-play" data-play-id="${escapeHtml(song.id)}">▶</button></div>`).join("");
+  $("#songList").innerHTML = songs.map((song) => `<div class="song-row ${state.selectedIds.has(song.id) ? "selected" : ""}" data-song-id="${escapeHtml(song.id)}" tabindex="0"><div class="song-cell"><input class="song-check" data-select-id="${escapeHtml(song.id)}" type="checkbox" ${state.selectedIds.has(song.id) ? "checked" : ""}/><div class="song-cover">${song.artwork ? `<img src="${song.artwork}" alt="" />` : "♫"}</div><div class="song-copy"><strong>${song.favorite ? '<span class="favorite-star">★</span>' : ""}${escapeHtml(song.title || song.fileName)}</strong><span>${song.publishedPath ? '<i class="published-dot"></i>' : ""}${escapeHtml(song.artist || song.fileName)}</span></div></div><span class="${song.persona ? "" : "missing"}">${escapeHtml(song.persona || "Unassigned")}</span><span class="${song.album ? "" : "missing"}">${escapeHtml(song.album || "No album")}</span><span>${escapeHtml(song.genre || "—")}</span><span>${formatTime(song.duration)}</span><div class="row-actions"><button class="row-queue" data-queue-id="${escapeHtml(song.id)}" title="Add to queue">＋</button><button class="row-play" data-play-id="${escapeHtml(song.id)}">▶</button></div></div>`).join("");
   $("#noResults").classList.toggle("hidden", Boolean(songs.length)); renderSelection();
 }
 
@@ -140,9 +146,13 @@ function setView(view) {
 }
 
 function applyPayload(payload) {
-  state.songs = payload?.songs || []; state.sources = payload?.sources || []; state.missingSources = payload?.missingSources || [];
+  const previousPlaying = state.playingSong; const previousQueue = state.queue;
+  state.songs = payload?.songs || []; state.sources = payload?.sources || []; state.missingSources = payload?.missingSources || []; state.playlists = payload?.playlists || state.playlists || []; state.selectedIds = new Set([...state.selectedIds].filter((id) => state.songs.some((song) => song.id === id)));
+  if (previousPlaying) state.playingSong = state.songs.find((song) => song.id === previousPlaying.id || song.originalPath === (previousPlaying.originalPath || previousPlaying.filePath)) || previousPlaying;
+  state.queue = previousQueue.map((queued) => state.songs.find((song) => song.id === queued.id || song.originalPath === (queued.originalPath || queued.filePath))).filter(Boolean);
+  if (state.playingSong && state.queue.length) state.queueIndex = Math.max(0, state.queue.findIndex((song) => song.id === state.playingSong.id));
   state.settings = mergeSettings(payload?.settings || state.settings); state.settingsDraft = structuredClone(state.settings); applyTheme(state.settings.theme);
-  audio.volume = state.settings.defaultVolume; $("#volumeBar").value = String(audio.volume); render();
+  setPlaybackVolume(state.settings.defaultVolume); $("#volumeBar").value = String(audio.volume); render();
 }
 
 function render() { renderSidebar(); renderLibrary(); if (state.playingSong) renderNowPlaying(); }
@@ -160,8 +170,9 @@ function setEditorArtwork(value) { state.draftArtwork = value || ""; $("#editorC
 function updateSyncedLyricsStatus() { $("#syncedLyricsStatus").value = state.draftSyncedLyrics.length ? `${state.draftSyncedLyrics.length} timed ${state.draftSyncedLyrics.length === 1 ? "line" : "lines"}` : "No timing data"; }
 
 function openEditor(song) {
+  if (state.selectedIds.size > 1) return openMassEditor();
   state.selectedSong = song; state.draftSyncedLyrics = structuredClone(song.syncedLyrics || []); state.draftVideoUrl = song.localVideoUrl || ""; setEditorArtwork(song.artwork);
-  document.body.classList.add("editor-open"); $("#editorPanel").setAttribute("aria-hidden", "false"); $("#editorFileName").textContent = song.fileName;
+  closeMassEditor(); document.body.classList.add("editor-open"); $("#editorPanel").setAttribute("aria-hidden", "false"); $("#editorFileName").textContent = song.fileName;
   const fields = ["Title", "Artist", "Persona", "Album", "Genre", "Year", "Track", "Tags", "SunoUrl", "Prompt", "Lyrics", "LyricsOffsetMs", "LocalVideoPath", "YoutubeUrl", "VideoOffsetMs", "Notes"];
   for (const field of fields) { const key = field[0].toLowerCase() + field.slice(1); $(`#field${field}`).value = song[key] ?? ""; }
   $("#fieldFavorite").checked = Boolean(song.favorite); updateSyncedLyricsStatus(); $("#infoLocation").textContent = song.filePath; $("#infoFormat").textContent = `${(song.extension || ".mp3").slice(1).toUpperCase()} · ${song.bitrate ? `${Math.round(song.bitrate / 1000)} kbps · ` : ""}${formatTime(song.duration)}`;
@@ -233,9 +244,10 @@ function estimatedWords(line) {
 function renderLyrics(song) {
   const container = $("#lyricsDisplay"); const timed = effectiveTimedLyrics(song);
   container.style.fontSize = `${state.lyricsFontSize}px`;
+  $("#lyricsHeading").textContent = timed.length ? "Synced lyrics" : "Lyrics";
   if (timed.length) {
     container.innerHTML = timed.map((line, index) => `<p class="lyric-line" data-line-index="${index}" data-start-ms="${line.startMs}">${estimatedWords(line).map((word) => `<span class="lyric-word" data-word-start="${Number(word.startMs)}">${escapeHtml(word.text)} </span>`).join("")}</p>`).join("");
-  } else if (song?.lyrics) container.innerHTML = `<div class="plain-lyrics">${escapeHtml(song.lyrics)}</div>`;
+  } else if (song?.lyrics) { container.innerHTML = `<div class="plain-lyrics">${escapeHtml(song.lyrics)}</div>`; container.scrollTop = 0; plainLyricsLastScroll = performance.now(); }
   else container.innerHTML = '<p class="lyrics-placeholder">No lyrics have been saved for this song.</p>';
 }
 
@@ -259,12 +271,45 @@ function ensureYoutubeApi() {
   youtubeApiPromise = new Promise((resolve, reject) => { const script = document.createElement("script"); script.src = "https://www.youtube.com/iframe_api"; script.onerror = () => reject(new Error("YouTube player could not be loaded.")); window.onYouTubeIframeAPIReady = () => resolve(window.YT); document.head.append(script); }); return youtubeApiPromise;
 }
 
+function youtubeState() {
+  try { return youtubePlayer?.getPlayerState?.(); } catch { return -1; }
+}
+
+function activeMedia() { return state.mediaSource === "video" ? video : audio; }
+function currentPlaybackTime() { if (state.mediaSource === "youtube") { try { return Number(youtubePlayer?.getCurrentTime?.() || 0); } catch { return 0; } } return Number(activeMedia().currentTime || 0); }
+function currentPlaybackDuration() { if (state.mediaSource === "youtube") { try { return Number(youtubePlayer?.getDuration?.() || state.playingSong?.duration || 0); } catch { return Number(state.playingSong?.duration || 0); } } return Number(activeMedia().duration || state.playingSong?.duration || 0); }
+function playbackIsPaused() { if (state.mediaSource === "youtube") return youtubeState() !== window.YT?.PlayerState?.PLAYING; return activeMedia().paused; }
+
+function updateFooter() {
+  if (!state.playingSong) return;
+  const current = currentPlaybackTime(); const duration = currentPlaybackDuration();
+  $("#currentTime").textContent = formatTime(current); $("#totalTime").textContent = formatTime(duration);
+  $("#seekBar").value = duration ? String(current / duration * 100) : "0";
+  $("#playPauseButton").textContent = playbackIsPaused() ? "▶" : "❚❚";
+  updateLyricsAt(current);
+  const timed = effectiveTimedLyrics(state.playingSong);
+  if (!timed.length && state.lyricsAutoScroll && !playbackIsPaused()) {
+    const now = performance.now(); const elapsed = Math.min(250, now - (plainLyricsLastScroll || now)); plainLyricsLastScroll = now;
+    const display = $("#lyricsDisplay"); if (display.scrollHeight > display.clientHeight) display.scrollTop += elapsed * 0.006;
+  } else plainLyricsLastScroll = performance.now();
+}
+
+function handleYoutubeError(event) {
+  const messages = { 2: "The YouTube link is invalid.", 5: "This video cannot play in the embedded player.", 100: "This YouTube video is unavailable.", 101: "The owner does not allow this video to be embedded.", 150: "The owner does not allow this video to be embedded.", 153: "YouTube rejected the embedded player identity. Try reopening the app or use Open in YouTube." };
+  showToast(messages[event.data] || `YouTube playback error ${event.data}.`, true);
+}
+
 async function showYoutube(song) {
   const id = youtubeId(song.youtubeUrl); if (!id) return showToast("Add a valid YouTube link to this song first.", true);
+  $("#openYoutubeExternalButton").classList.remove("hidden"); $("#visualizerToggleButton").classList.add("hidden"); $("#quickVisualizerSelect").classList.add("hidden");
   audio.pause(); video.pause(); $("#localVideoPlayer").classList.add("hidden"); $("#youtubeStage").classList.remove("hidden"); $("#visualizerCanvas").classList.add("hidden"); $("#visualizerStatus").textContent = "YouTube playback · visualizer unavailable";
   try {
     if (youtubePlayer?.destroy) youtubePlayer.destroy(); $("#youtubePlayerHost").innerHTML = ""; await ensureYoutubeApi();
-    youtubePlayer = new window.YT.Player("youtubePlayerHost", { videoId: id, playerVars: { autoplay: 1, rel: 0 }, events: { onReady: (event) => event.target.playVideo() } });
+    youtubePlayer = new window.YT.Player("youtubePlayerHost", { videoId: id, host: "https://www.youtube.com", playerVars: { autoplay: 1, rel: 0, enablejsapi: 1, origin: "https://www.youtube.com", widget_referrer: "https://www.youtube.com/" }, events: {
+      onReady: (event) => { event.target.setVolume(Math.round(Number($("#volumeBar").value) * 100)); event.target.playVideo(); updateFooter(); },
+      onStateChange: (event) => { updateFooter(); if (event.data === window.YT.PlayerState.ENDED) handleMediaEnded(); },
+      onError: handleYoutubeError,
+    } });
   } catch (error) { $("#youtubePlayerHost").innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1"></iframe>`; showToast(friendlyError(error), true); }
 }
 
@@ -297,8 +342,9 @@ function drawVisualizer() {
     const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim(); const secondary = getComputedStyle(document.documentElement).getPropertyValue("--secondary").trim(); const glow = getComputedStyle(document.documentElement).getPropertyValue("--glow").trim();
     if (type === "wave") { analyser.getByteTimeDomainData(wave); context.beginPath(); context.lineWidth = 3; context.strokeStyle = secondary; context.shadowBlur = 18; context.shadowColor = glow; wave.forEach((value, index) => { const x = index / (wave.length - 1) * width; const y = height / 2 + ((value - 128) / 128) * height * .3 * sensitivity; index ? context.lineTo(x, y) : context.moveTo(x, y); }); context.stroke(); }
     else {
-      analyser.getByteFrequencyData(frequency); const bins = type === "radial" || type === "cosmic" ? 96 : 72; const centerX = width / 2, centerY = height / 2; const radius = Math.min(width, height) * .18;
-      if (type === "radial" || type === "cosmic") { context.save(); context.translate(centerX, centerY); for (let index = 0; index < bins; index++) { const value = Math.min(1, frequency[index] / 255 * sensitivity); const angle = index / bins * Math.PI * 2; const length = 12 + value * Math.min(width, height) * .22; context.save(); context.rotate(angle); context.fillStyle = index % 3 ? secondary : primary; context.shadowBlur = type === "cosmic" ? 18 : 8; context.shadowColor = glow; context.fillRect(radius, -1.5, length, 3); context.restore(); } if (type === "cosmic") { context.beginPath(); context.arc(0, 0, radius * (1 + frequency[3] / 255 * .12), 0, Math.PI * 2); context.strokeStyle = primary; context.lineWidth = 2; context.shadowBlur = 25; context.shadowColor = primary; context.stroke(); } context.restore(); }
+      analyser.getByteFrequencyData(frequency); const bins = type === "radial" ? 96 : 72; const centerX = width / 2, centerY = height / 2; const radius = Math.min(width, height) * .18;
+      if (type === "radial") { context.save(); context.translate(centerX, centerY); for (let index = 0; index < bins; index++) { const sourceIndex = 4 + Math.floor(index / bins * Math.max(1, frequency.length - 8)); const previous = frequency[Math.max(4, sourceIndex - 1)]; const next = frequency[Math.min(frequency.length - 1, sourceIndex + 1)]; const value = Math.min(1, ((previous + frequency[sourceIndex] * 2 + next) / 4) / 255 * sensitivity); const angle = index / bins * Math.PI * 2; const length = 12 + value * Math.min(width, height) * .22; context.save(); context.rotate(angle); context.fillStyle = index % 3 ? secondary : primary; context.shadowBlur = 8; context.shadowColor = glow; context.fillRect(radius, -1.5, length, 3); context.restore(); } context.restore(); }
+      else if (type === "cosmic") { context.save(); context.translate(centerX, centerY); const bass = frequency.slice(4, 16).reduce((sum, value) => sum + value, 0) / 12 / 255 * sensitivity; const mid = frequency.slice(16, 64).reduce((sum, value) => sum + value, 0) / 48 / 255 * sensitivity; for (let orbit = 0; orbit < 7; orbit++) { const energy = Math.min(1, frequency[8 + orbit * 9] / 255 * sensitivity); context.save(); context.rotate(orbit * .46 + performance.now() * .000025 * (orbit % 2 ? -1 : 1)); context.scale(1, .48 + orbit * .035); context.beginPath(); context.arc(0, 0, radius * (1.1 + orbit * .36 + energy * .18), 0, Math.PI * 2); context.strokeStyle = orbit % 2 ? `${secondary}88` : `${primary}88`; context.lineWidth = 1 + energy * 1.8; context.shadowBlur = 12 + energy * 20; context.shadowColor = orbit % 2 ? secondary : glow; context.stroke(); context.restore(); } for (let particle = 0; particle < 44; particle++) { const band = 6 + (particle * 7) % Math.max(8, frequency.length - 12); const energy = Math.min(1, frequency[band] / 255 * sensitivity); const angle = particle * 2.399963 + performance.now() * .00003 * (1 + particle % 3); const distance = radius * (1.2 + (particle % 11) * .25 + energy * .8); const x = Math.cos(angle) * distance; const y = Math.sin(angle) * distance * (.58 + (particle % 5) * .045); context.beginPath(); context.arc(x, y, 1.4 + energy * 3.4, 0, Math.PI * 2); context.fillStyle = particle % 3 ? secondary : primary; context.shadowBlur = 10 + energy * 16; context.shadowColor = particle % 3 ? secondary : glow; context.fill(); } context.beginPath(); context.arc(0, 0, radius * (.72 + bass * .18), 0, Math.PI * 2); context.fillStyle = `rgba(5,9,18,${.35 + mid * .2})`; context.strokeStyle = primary; context.lineWidth = 2 + bass * 3; context.shadowBlur = 25; context.shadowColor = primary; context.fill(); context.stroke(); context.restore(); }
       else { const gap = 3; const barWidth = width / bins - gap; for (let index = 0; index < bins; index++) { const value = Math.min(1, frequency[index] / 255 * sensitivity); const barHeight = 6 + value * height * (type === "mirror" ? .38 : .78); const x = index * (barWidth + gap); const gradient = context.createLinearGradient(0, height, 0, height - barHeight); gradient.addColorStop(0, primary); gradient.addColorStop(1, secondary); context.fillStyle = gradient; context.shadowBlur = 10; context.shadowColor = glow; if (type === "mirror") { context.fillRect(x, height / 2 - barHeight, barWidth, barHeight); context.fillRect(x, height / 2, barWidth, barHeight); } else context.fillRect(x, height - barHeight, barWidth, barHeight); } }
     }
     visualFrame = requestAnimationFrame(loop);
@@ -306,48 +352,79 @@ function drawVisualizer() {
 }
 
 async function playAudio(song) {
+  $("#openYoutubeExternalButton").classList.add("hidden"); $("#visualizerToggleButton").classList.remove("hidden"); $("#quickVisualizerSelect").classList.remove("hidden");
   state.mediaSource = "audio"; stopYoutube(); video.pause(); video.classList.add("hidden"); $("#visualizerCanvas").classList.toggle("hidden", state.settings.visualizer.type === "off");
   if (audio.src !== song.fileUrl) audio.src = song.fileUrl; await ensureAudioGraph(audio); await applyAudioOutput(state.settings.audioOutput, true); await audio.play(); $("#visualizerStatus").textContent = "Visualizer · SERA.FM Player"; renderNowPlaying();
 }
 
 async function playVideo(song) {
-  if (!song.localVideoUrl) return showToast("Attach a local video to this song first.", true); state.mediaSource = "video"; stopYoutube(); audio.pause(); video.src = song.localVideoUrl; video.classList.remove("hidden"); $("#visualizerCanvas").classList.toggle("hidden", state.settings.visualizer.type === "off"); await ensureAudioGraph(video); await applyAudioOutput(state.settings.audioOutput, true); await video.play(); $("#visualizerStatus").textContent = "Visualizer · Attached video"; renderNowPlaying();
+  if (!song.localVideoUrl) return showToast("Attach a local video to this song first.", true); $("#openYoutubeExternalButton").classList.add("hidden"); $("#visualizerToggleButton").classList.remove("hidden"); $("#quickVisualizerSelect").classList.remove("hidden"); state.mediaSource = "video"; stopYoutube(); audio.pause(); video.src = song.localVideoUrl; video.classList.remove("hidden"); $("#visualizerCanvas").classList.toggle("hidden", state.settings.visualizer.type === "off"); await ensureAudioGraph(video); await applyAudioOutput(state.settings.audioOutput, true); await video.play(); $("#visualizerStatus").textContent = "Visualizer · Attached video"; renderNowPlaying();
 }
 
 async function selectMediaSource(source) {
   if (!state.playingSong) return; state.mediaSource = source;
+  $("#openYoutubeExternalButton").classList.toggle("hidden", source !== "youtube"); $("#visualizerToggleButton").classList.toggle("hidden", source === "youtube"); $("#quickVisualizerSelect").classList.toggle("hidden", source === "youtube");
   try { if (source === "audio") await playAudio(state.playingSong); else if (source === "video") await playVideo(state.playingSong); else { state.mediaSource = "youtube"; await showYoutube(state.playingSong); renderNowPlaying(); } } catch (error) { showToast(friendlyError(error, "This media could not be played."), true); }
 }
 
-async function playSong(song, openPage = false) {
-  state.playingSong = song; $("#player").classList.remove("hidden"); $("#playerTitle").textContent = song.title; $("#playerArtist").textContent = song.artist || song.persona || song.fileName; await playAudio(song).catch((error) => showToast(friendlyError(error, "This song could not be played."), true)); renderSidebar(); if (openPage) setView("now-playing");
+async function playSong(song, openPage = false, preserveQueue = false) {
+  if (!preserveQueue) { state.queue = [...getFilteredSongs()]; state.queueIndex = state.queue.findIndex((item) => item.id === song.id); if (state.queueIndex < 0) { state.queue = [song]; state.queueIndex = 0; } }
+  state.playingSong = song; $("#player").classList.remove("hidden"); $("#playerTitle").textContent = song.title; $("#playerArtist").textContent = song.artist || song.persona || song.fileName; await playAudio(song).catch((error) => showToast(friendlyError(error, "This song could not be played."), true)); renderSidebar(); renderQueue(); if (openPage) setView("now-playing");
 }
+
+function addToQueue(song) { if (!state.queue.some((item) => item.id === song.id)) state.queue.push(song); renderQueue(); showToast(`${song.title} added to the queue.`); }
+function shuffledIndex() { if (state.queue.length < 2) return state.queueIndex; let value = state.queueIndex; while (value === state.queueIndex) value = Math.floor(Math.random() * state.queue.length); return value; }
+async function playQueueIndex(index) { if (!state.queue.length) return; state.queueIndex = (index + state.queue.length) % state.queue.length; await playSong(state.queue[state.queueIndex], false, true); }
+async function playNext(fromEnded = false) {
+  if (!state.queue.length) return;
+  if (fromEnded && state.repeatMode === "one") { seekPlayback(0); togglePlayback(); return; }
+  if (!state.shuffle && state.queueIndex >= state.queue.length - 1 && state.repeatMode !== "all") return;
+  await playQueueIndex(state.shuffle ? shuffledIndex() : state.queueIndex + 1);
+}
+async function playPrevious() { if (currentPlaybackTime() > 4) return seekPlayback(0); await playQueueIndex(state.shuffle ? shuffledIndex() : state.queueIndex - 1); }
+function handleMediaEnded() { playNext(true).catch((error) => showToast(friendlyError(error), true)); }
+function seekPlayback(seconds) { const value = Math.max(0, Number(seconds || 0)); if (state.mediaSource === "youtube") youtubePlayer?.seekTo?.(value, true); else activeMedia().currentTime = value; updateFooter(); }
+function setPlaybackVolume(value) { const volume = Math.max(0, Math.min(1, Number(value))); audio.volume = volume; video.volume = volume; try { youtubePlayer?.setVolume?.(Math.round(volume * 100)); } catch { /* YouTube is not ready. */ } }
+function togglePlayback() { if (!state.playingSong) return; if (state.mediaSource === "youtube") { if (playbackIsPaused()) youtubePlayer?.playVideo?.(); else youtubePlayer?.pauseVideo?.(); } else if (activeMedia().paused) activeMedia().play().catch((error) => showToast(friendlyError(error), true)); else activeMedia().pause(); }
+
+function renderQueue() {
+  $("#queueList").innerHTML = state.queue.length ? state.queue.map((song, index) => `<div class="queue-item ${index === state.queueIndex ? "current" : ""}"><button class="queue-item-copy" data-queue-play="${index}"><strong>${escapeHtml(song.title)}</strong><span>${escapeHtml(song.artist || song.persona || song.fileName)}</span></button><button data-queue-remove="${index}" title="Remove">×</button></div>`).join("") : '<p class="modal-intro">The queue is empty. Use ＋ beside any song.</p>';
+  $("#playlistList").innerHTML = state.playlists.length ? state.playlists.map((playlist) => `<div class="playlist-item"><button data-playlist-load="${escapeHtml(playlist.id)}">${escapeHtml(playlist.name)} <small>(${playlist.songIds.length})</small></button><button data-playlist-delete="${escapeHtml(playlist.id)}">×</button></div>`).join("") : '<span class="side-empty">No saved playlists</span>';
+}
+
+async function savePlaylists() { state.playlists = await window.seraLibrary.savePlaylists(state.playlists); renderQueue(); }
 
 function renderNowPlaying() {
   const song = state.playingSong; $("#nowPlayingEmpty").classList.toggle("hidden", Boolean(song)); $("#nowPlayingContent").classList.toggle("hidden", !song); if (!song) return;
-  $("#nowArtwork").src = song.artwork || "../assets/sera-logo.png"; $("#nowArtwork").style.opacity = state.settings.visualizer.showArtwork ? ".48" : "0"; $("#nowTitle").textContent = song.title; $("#nowArtist").textContent = song.artist || "Unknown artist"; $("#nowPersona").textContent = (song.persona || "Unassigned persona").toUpperCase(); $("#nowFavoriteButton").textContent = song.favorite ? "★" : "☆";
+  $("#nowArtwork").src = song.artwork || "../assets/sera-logo.png"; $("#nowArtwork").style.opacity = state.settings.visualizer.showArtwork ? ".72" : "0"; $("#nowTitle").textContent = song.title; $("#nowArtist").textContent = song.artist || "Unknown artist"; $("#nowPersona").textContent = (song.persona || "Unassigned persona").toUpperCase(); $("#nowFavoriteButton").textContent = song.favorite ? "★" : "☆";
   $("#nowChips").innerHTML = [song.album, song.genre, song.year, song.tags].filter(Boolean).flatMap((value) => String(value).split(",")).map((value) => `<span class="chip">${escapeHtml(value.trim())}</span>`).join("");
   $("#nowPrompt").textContent = song.prompt || "No style prompt saved."; $("#nowNotes").textContent = song.notes || "No notes saved.";
   $("#nowDetails").innerHTML = [["Persona", song.persona || "Unassigned"], ["Album", song.album || "No album"], ["Track", song.track || "—"], ["Duration", formatTime(song.duration)], ["File", song.fileName], ["Published", song.publishedPath ? "Yes" : "No"]].map(([term, value]) => `<div><dt>${term}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   $$('[data-media-source]').forEach((button) => { button.classList.toggle("active", button.dataset.mediaSource === state.mediaSource); button.disabled = (button.dataset.mediaSource === "video" && !song.localVideoPath) || (button.dataset.mediaSource === "youtube" && !youtubeId(song.youtubeUrl)); });
-  $("#nowOpenSunoButton").disabled = !song.sunoUrl; $("#nowPlayButton").textContent = state.mediaSource === "audio" && !audio.paused ? "❚❚ Pause audio" : "▶ Play audio"; renderLyrics(song);
+  $("#nowOpenSunoButton").disabled = !song.sunoUrl; $("#nowPlayButton").textContent = playbackIsPaused() ? `▶ Play ${state.mediaSource === "youtube" ? "YouTube" : state.mediaSource === "video" ? "video" : "audio"}` : "❚❚ Pause"; $("#quickVisualizerSelect").value = state.settings.visualizer.type === "off" ? state.lastVisualizerType : state.settings.visualizer.type; $("#visualizerToggleButton").textContent = `Visuals: ${state.settings.visualizer.type === "off" ? "Off" : "On"}`; renderLyrics(song);
 }
 
 function openModal(id) { $(`#${id}`).classList.remove("hidden"); }
 function closeModal(id) { $(`#${id}`).classList.add("hidden"); if (id === "settingsModal") applyTheme(state.settings.theme); }
 function selectedSongs() { return state.songs.filter((song) => state.selectedIds.has(song.id)); }
 
-function openBulkEditor() { if (!state.selectedIds.size) return; $$('[data-bulk-apply]').forEach((checkbox) => { checkbox.checked = false; const input = $(`#bulk${checkbox.dataset.bulkApply[0].toUpperCase()}${checkbox.dataset.bulkApply.slice(1)}`); input.disabled = true; input.value = ""; }); openModal("bulkModal"); }
+function openMassEditor() {
+  if (state.selectedIds.size < 2) return;
+  closeEditor(); state.massEditorVisible = true; document.body.classList.add("mass-editor-open"); $("#massEditorPanel").setAttribute("aria-hidden", "false"); $("#massEditCount").textContent = state.selectedIds.size;
+  $$('[data-mass-apply]').forEach((checkbox) => { checkbox.checked = false; const input = $(`#mass${checkbox.dataset.massApply[0].toUpperCase()}${checkbox.dataset.massApply.slice(1)}`); input.disabled = true; input.value = ""; });
+}
+
+function closeMassEditor() { state.massEditorVisible = false; document.body.classList.remove("mass-editor-open"); $("#massEditorPanel")?.setAttribute("aria-hidden", "true"); }
 
 async function applyBulkChanges() {
-  const changes = {}; for (const checkbox of $$('[data-bulk-apply]')) if (checkbox.checked) { const field = checkbox.dataset.bulkApply; changes[field] = $(`#bulk${field[0].toUpperCase()}${field.slice(1)}`).value.trim(); }
+  const changes = {}; for (const checkbox of $$('[data-mass-apply]')) if (checkbox.checked) { const field = checkbox.dataset.massApply; changes[field] = $(`#mass${field[0].toUpperCase()}${field.slice(1)}`).value.trim(); }
   if (!Object.keys(changes).length) return showToast("Enable at least one field to mass edit.", true);
-  try { await window.seraLibrary.bulkSaveSongs([...state.selectedIds], changes); state.songs = state.songs.map((song) => state.selectedIds.has(song.id) ? { ...song, ...changes } : song); closeModal("bulkModal"); render(); showToast(`${state.selectedIds.size} songs updated.`); } catch (error) { showToast(friendlyError(error, "Mass edit failed."), true); }
+  try { const targets = selectedSongs().map((song) => ({ filePath: song.filePath, publishedId: song.publishedId || "" })); await window.seraLibrary.bulkSaveSongs(targets, changes); state.songs = state.songs.map((song) => state.selectedIds.has(song.id) ? { ...song, ...changes } : song); $("#massEditStatus").textContent = "Saved"; render(); showToast(`${state.selectedIds.size} songs updated safely.`); } catch (error) { showToast(friendlyError(error, "Mass edit failed."), true); }
 }
 
 async function publishSongs(songs) {
   if (!songs.length) return showToast("Select at least one song to publish.", true); if (state.settings.confirmPublishOverwrite && !confirm(`Publish ${songs.length} managed ${songs.length === 1 ? "copy" : "copies"}?`)) return;
-  try { const response = await window.seraLibrary.publishSongs(songs); if (!response) return; state.settings = mergeSettings(response.settings || state.settings); let published = 0, skipped = 0, failed = 0; for (const result of response.results) { const song = state.songs.find((item) => item.filePath === result.filePath); if (result.status === "published") { published++; if (song) song.publishedPath = result.path; } else if (result.status === "skipped") skipped++; else failed++; } render(); showToast([`${published} published`, skipped ? `${skipped} skipped` : "", failed ? `${failed} failed` : ""].filter(Boolean).join(" · "), failed > 0); } catch (error) { showToast(friendlyError(error, "Publishing failed."), true); }
+  try { const response = await window.seraLibrary.publishSongs(songs); if (!response) return; state.settings = mergeSettings(response.settings || state.settings); let published = 0, skipped = 0, failed = 0; for (const result of response.results) { if (result.status === "published") published++; else if (result.status === "skipped") skipped++; else failed++; } await refreshLibrary(); render(); showToast([`${published} published`, skipped ? `${skipped} skipped` : "", failed ? `${failed} failed` : ""].filter(Boolean).join(" · "), failed > 0); } catch (error) { showToast(friendlyError(error, "Publishing failed."), true); }
 }
 
 function sunoFieldLabel(field) { return ({ title: "Title", artist: "Creator", persona: "Persona / voice", lyrics: "Lyrics", syncedLyrics: "Synchronized lyrics", prompt: "Style prompt", artwork: "Artwork", genre: "Genre", year: "Year" })[field] || field; }
@@ -384,6 +461,15 @@ async function saveSettings() {
   $("#settingsStatus").textContent = "Saving…"; try { state.settings = mergeSettings(await window.seraLibrary.saveSettings(state.settingsDraft)); applyTheme(state.settings.theme); audio.volume = state.settings.defaultVolume; $("#volumeBar").value = String(audio.volume); await applyAudioOutput(state.settings.audioOutput, true); $("#settingsStatus").textContent = "Saved"; render(); drawVisualizer(); setTimeout(() => closeModal("settingsModal"), 300); } catch (error) { $("#settingsStatus").textContent = ""; showToast(friendlyError(error, "Settings could not be saved."), true); }
 }
 
+async function saveVisualizerChoice(type) {
+  if (type !== "off") state.lastVisualizerType = type;
+  state.settings.visualizer.type = type; state.settingsDraft = structuredClone(state.settings);
+  try { state.settings = mergeSettings(await window.seraLibrary.saveSettings(state.settings)); } catch (error) { showToast(friendlyError(error, "Visualizer setting could not be saved."), true); }
+  $("#visualizerCanvas").classList.toggle("hidden", type === "off" || state.mediaSource === "youtube");
+  $("#visualizerToggleButton").textContent = `Visuals: ${type === "off" ? "Off" : "On"}`;
+  if (type !== "off") drawVisualizer(); else cancelAnimationFrame(visualFrame);
+}
+
 async function testAudioOutput() {
   try { const context = new AudioContext(); const destination = context.createMediaStreamDestination(); const oscillator = context.createOscillator(); const gain = context.createGain(); oscillator.frequency.value = 523.25; gain.gain.value = .12; oscillator.connect(gain).connect(destination); const test = new Audio(); test.srcObject = destination.stream; if (typeof test.setSinkId === "function") await test.setSinkId($("#audioOutputSelect").value === "default" ? "" : $("#audioOutputSelect").value); await test.play(); oscillator.start(); oscillator.stop(context.currentTime + .45); setTimeout(() => { test.pause(); context.close(); }, 650); showToast("Test tone sent to the selected output."); } catch (error) { showToast(`Output test failed: ${error.message}`, true); }
 }
@@ -409,19 +495,24 @@ document.addEventListener("click", async (event) => {
   const viewButton = event.target.closest("[data-view]"); if (viewButton) return setView(viewButton.dataset.view);
   const filterButton = event.target.closest("[data-filter]"); if (filterButton) { state.activeFilter = { type: filterButton.dataset.filter, value: filterButton.dataset.value || "" }; $("#pageTitle").textContent = state.activeFilter.type === "all" ? "Library" : filterButton.querySelector("span")?.textContent || "Songs"; setView("library"); render(); return; }
   const selectBox = event.target.closest("[data-select-id]"); if (selectBox) { event.stopPropagation(); if (selectBox.checked) state.selectedIds.add(selectBox.dataset.selectId); else state.selectedIds.delete(selectBox.dataset.selectId); renderSongList(); return; }
+  const queueAdd = event.target.closest("[data-queue-id]"); if (queueAdd) { event.stopPropagation(); const song = state.songs.find((item) => item.id === queueAdd.dataset.queueId); if (song) addToQueue(song); return; }
   const playButton = event.target.closest("[data-play-id]"); if (playButton) { event.stopPropagation(); const song = state.songs.find((item) => item.id === playButton.dataset.playId); if (song) await playSong(song); return; }
   const row = event.target.closest("[data-song-id]"); if (row) { const song = state.songs.find((item) => item.id === row.dataset.songId); if (song) openEditor(song); return; }
   const mediaButton = event.target.closest("[data-media-source]"); if (mediaButton) return selectMediaSource(mediaButton.dataset.mediaSource);
   const lyricLine = event.target.closest("[data-start-ms]"); if (lyricLine && state.playingSong) { const seconds = Number(lyricLine.dataset.startMs) / 1000; if (state.mediaSource === "video") video.currentTime = seconds; else if (state.mediaSource === "audio") audio.currentTime = seconds; else if (youtubePlayer?.seekTo) youtubePlayer.seekTo(seconds, true); return; }
+  const queuePlay = event.target.closest("[data-queue-play]"); if (queuePlay) { await playQueueIndex(Number(queuePlay.dataset.queuePlay)); return; }
+  const queueRemove = event.target.closest("[data-queue-remove]"); if (queueRemove) { const index = Number(queueRemove.dataset.queueRemove); state.queue.splice(index, 1); if (index < state.queueIndex) state.queueIndex--; else if (index === state.queueIndex) state.queueIndex = Math.min(index, state.queue.length - 1); renderQueue(); return; }
+  const playlistLoad = event.target.closest("[data-playlist-load]"); if (playlistLoad) { const playlist = state.playlists.find((item) => item.id === playlistLoad.dataset.playlistLoad); if (playlist) { state.queue = playlist.songIds.map((id) => state.songs.find((song) => song.id === id || song.filePath === id)).filter(Boolean); state.queueIndex = -1; renderQueue(); showToast(`${playlist.name} loaded into the queue.`); } return; }
+  const playlistDelete = event.target.closest("[data-playlist-delete]"); if (playlistDelete) { state.playlists = state.playlists.filter((item) => item.id !== playlistDelete.dataset.playlistDelete); await savePlaylists(); return; }
   const remove = event.target.closest("[data-remove-source]"); if (remove) { const source = state.sources.find((item) => item.id === remove.dataset.removeSource); if (source && confirm(`Remove “${source.name}” from this catalog? Your music files will not be deleted.`)) { applyPayload(await window.seraLibrary.removeSource(source.id)); showToast("Folder removed. Files were not changed."); } }
 });
 
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") { const modal = $$(".modal-overlay:not(.hidden)").pop(); if (modal) closeModal(modal.id); else if (state.selectedSong) closeEditor(); } });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") { if (document.body.classList.contains("media-fullscreen")) { document.body.classList.remove("media-fullscreen"); window.seraLibrary.exitFullscreen(); return; } const modal = $$(".modal-overlay:not(.hidden)").pop(); if (modal) closeModal(modal.id); else if (state.massEditorVisible) closeMassEditor(); else if (state.selectedSong) closeEditor(); } });
 
 $("#addFolderButton").addEventListener("click", addFolder); $("#emptyAddFolderButton").addEventListener("click", addFolder); $("#rescanButton").addEventListener("click", refreshLibrary); $("#closeEditorButton").addEventListener("click", closeEditor); $("#saveButton").addEventListener("click", saveSelectedSong);
 $("#revealButton").addEventListener("click", () => state.selectedSong && window.seraLibrary.revealFile(state.selectedSong.filePath)); $("#revealPublishedButton").addEventListener("click", () => state.selectedSong?.publishedPath && window.seraLibrary.revealFile(state.selectedSong.publishedPath));
 $("#searchInput").addEventListener("input", (event) => { state.search = event.target.value; renderSongList(); }); $("#selectAllCheckbox").addEventListener("change", (event) => { getFilteredSongs().forEach((song) => event.target.checked ? state.selectedIds.add(song.id) : state.selectedIds.delete(song.id)); renderSongList(); });
-$("#selectVisibleButton").addEventListener("click", () => { getFilteredSongs().forEach((song) => state.selectedIds.add(song.id)); renderSongList(); }); $("#clearSelectionButton").addEventListener("click", () => { state.selectedIds.clear(); renderSongList(); }); $("#bulkEditButton").addEventListener("click", openBulkEditor); $("#applyBulkButton").addEventListener("click", applyBulkChanges); $$('[data-bulk-apply]').forEach((checkbox) => checkbox.addEventListener("change", () => { $(`#bulk${checkbox.dataset.bulkApply[0].toUpperCase()}${checkbox.dataset.bulkApply.slice(1)}`).disabled = !checkbox.checked; })); $("#bulkPublishButton").addEventListener("click", () => publishSongs(selectedSongs())); $("#publishSongButton").addEventListener("click", () => { const song = collectEditorSong(); if (song) publishSongs([song]); });
+$("#selectVisibleButton").addEventListener("click", () => { getFilteredSongs().forEach((song) => state.selectedIds.add(song.id)); renderSongList(); }); $("#clearSelectionButton").addEventListener("click", () => { state.selectedIds.clear(); renderSongList(); }); $("#bulkEditButton").addEventListener("click", openMassEditor); $("#applyMassEditButton").addEventListener("click", applyBulkChanges); $("#closeMassEditorButton").addEventListener("click", closeMassEditor); $("#cancelMassEditButton").addEventListener("click", closeMassEditor); $$('[data-mass-apply]').forEach((checkbox) => checkbox.addEventListener("change", () => { $(`#mass${checkbox.dataset.massApply[0].toUpperCase()}${checkbox.dataset.massApply.slice(1)}`).disabled = !checkbox.checked; })); $("#bulkPublishButton").addEventListener("click", () => publishSongs(selectedSongs())); $("#publishSongButton").addEventListener("click", () => { const song = collectEditorSong(); if (song) publishSongs([song]); });
 
 async function chooseArtwork() { try { const result = await window.seraLibrary.selectArtwork(); if (result) { setEditorArtwork(result.artwork); showToast(`${result.fileName} selected. Save to keep it.`); } } catch (error) { showToast(friendlyError(error), true); } }
 $("#chooseArtworkButton").addEventListener("click", chooseArtwork); $("#editorCover").addEventListener("click", chooseArtwork);
@@ -437,14 +528,18 @@ async function backupCatalog() { try { if (await window.seraLibrary.backup()) sh
 async function restoreCatalog() { try { const payload = await window.seraLibrary.restore(); if (payload) { applyPayload(payload); showToast("Catalog restored."); } } catch (error) { showToast(friendlyError(error, "Restore failed."), true); } }
 $("#backupButton").addEventListener("click", backupCatalog); $("#settingsBackupButton").addEventListener("click", backupCatalog); $("#restoreButton").addEventListener("click", restoreCatalog); $("#settingsRestoreButton").addEventListener("click", restoreCatalog);
 
-$("#playPauseButton").addEventListener("click", () => audio.paused ? audio.play() : audio.pause()); audio.addEventListener("play", () => { $("#playPauseButton").textContent = "❚❚"; renderNowPlaying(); }); audio.addEventListener("pause", () => { $("#playPauseButton").textContent = "▶"; renderNowPlaying(); }); audio.addEventListener("loadedmetadata", () => { $("#totalTime").textContent = formatTime(audio.duration); }); audio.addEventListener("timeupdate", () => { $("#currentTime").textContent = formatTime(audio.currentTime); $("#seekBar").value = audio.duration ? String(audio.currentTime / audio.duration * 100) : "0"; updateLyricsAt(audio.currentTime); }); video.addEventListener("timeupdate", () => updateLyricsAt(video.currentTime));
-$("#seekBar").addEventListener("input", () => { if (audio.duration) audio.currentTime = Number($("#seekBar").value) / 100 * audio.duration; }); $("#volumeBar").addEventListener("input", () => { audio.volume = Number($("#volumeBar").value); video.volume = audio.volume; if (state.settings.rememberVolume) state.settings.defaultVolume = audio.volume; }); $("#openNowPlayingButton").addEventListener("click", () => setView("now-playing"));
-$("#nowPlayButton").addEventListener("click", () => { if (state.mediaSource === "audio" && !audio.paused) audio.pause(); else if (state.playingSong) selectMediaSource("audio"); }); $("#editPlayingButton").addEventListener("click", () => state.playingSong && openEditor(state.playingSong)); $("#nowRevealButton").addEventListener("click", () => state.playingSong && window.seraLibrary.revealFile(state.playingSong.filePath)); $("#nowOpenSunoButton").addEventListener("click", async () => { if (state.playingSong?.sunoUrl) try { await window.seraLibrary.openExternal(state.playingSong.sunoUrl); } catch (error) { showToast(friendlyError(error), true); } });
+$("#playPauseButton").addEventListener("click", togglePlayback); for (const media of [audio, video]) { media.addEventListener("play", () => { updateFooter(); renderNowPlaying(); }); media.addEventListener("pause", () => { updateFooter(); renderNowPlaying(); }); media.addEventListener("loadedmetadata", updateFooter); media.addEventListener("timeupdate", updateFooter); media.addEventListener("ended", handleMediaEnded); }
+$("#seekBar").addEventListener("input", () => { const duration = currentPlaybackDuration(); if (duration) seekPlayback(Number($("#seekBar").value) / 100 * duration); }); $("#volumeBar").addEventListener("input", () => { setPlaybackVolume($("#volumeBar").value); if (state.settings.rememberVolume) state.settings.defaultVolume = Number($("#volumeBar").value); }); $("#openNowPlayingButton").addEventListener("click", () => setView("now-playing"));
+$("#previousButton").addEventListener("click", () => playPrevious()); $("#nextButton").addEventListener("click", () => playNext()); $("#shuffleButton").addEventListener("click", () => { state.shuffle = !state.shuffle; $("#shuffleButton").classList.toggle("active", state.shuffle); showToast(`Shuffle ${state.shuffle ? "on" : "off"}.`); }); $("#repeatButton").addEventListener("click", () => { state.repeatMode = state.repeatMode === "off" ? "all" : state.repeatMode === "all" ? "one" : "off"; $("#repeatButton").textContent = state.repeatMode === "one" ? "↻1" : "↻"; $("#repeatButton").classList.toggle("active", state.repeatMode !== "off"); $("#repeatButton").title = `Repeat ${state.repeatMode}`; });
+$("#queueButton").addEventListener("click", () => { document.body.classList.add("queue-open"); $("#queuePanel").setAttribute("aria-hidden", "false"); renderQueue(); }); $("#closeQueueButton").addEventListener("click", () => { document.body.classList.remove("queue-open"); $("#queuePanel").setAttribute("aria-hidden", "true"); }); $("#clearQueueButton").addEventListener("click", () => { state.queue = state.playingSong ? [state.playingSong] : []; state.queueIndex = state.queue.length ? 0 : -1; renderQueue(); }); $("#savePlaylistButton").addEventListener("click", async () => { const name = $("#playlistNameInput").value.trim(); if (!name || !state.queue.length) return showToast("Enter a playlist name and add songs to the queue first.", true); const existing = state.playlists.find((item) => item.name.toLowerCase() === name.toLowerCase()); const playlist = { id: existing?.id || crypto.randomUUID(), name, songIds: state.queue.map((song) => song.id), updatedAt: new Date().toISOString() }; state.playlists = existing ? state.playlists.map((item) => item.id === existing.id ? playlist : item) : [...state.playlists, playlist]; await savePlaylists(); $("#playlistNameInput").value = ""; showToast(`${name} saved.`); });
+$("#nowPlayButton").addEventListener("click", togglePlayback); $("#editPlayingButton").addEventListener("click", () => state.playingSong && openEditor(state.playingSong)); $("#nowRevealButton").addEventListener("click", () => state.playingSong && window.seraLibrary.revealFile(state.playingSong.filePath)); $("#nowOpenSunoButton").addEventListener("click", async () => { if (state.playingSong?.sunoUrl) try { await window.seraLibrary.openExternal(state.playingSong.sunoUrl); } catch (error) { showToast(friendlyError(error), true); } });
 $("#nowFavoriteButton").addEventListener("click", async () => { if (!state.playingSong) return; const song = { ...state.playingSong, favorite: !state.playingSong.favorite }; try { await saveSong(song, song.favorite ? "Added to Favorites." : "Removed from Favorites."); } catch (error) { showToast(friendlyError(error), true); } });
+$("#quickVisualizerSelect").addEventListener("change", (event) => saveVisualizerChoice(event.target.value)); $("#visualizerToggleButton").addEventListener("click", () => saveVisualizerChoice(state.settings.visualizer.type === "off" ? state.lastVisualizerType : "off")); $("#stageFullscreenButton").addEventListener("click", async () => { try { const fullscreen = await window.seraLibrary.toggleFullscreen(); document.body.classList.toggle("media-fullscreen", fullscreen); $("#stageFullscreenButton").textContent = fullscreen ? "⛶ Exit fullscreen" : "⛶ Fullscreen"; } catch (error) { showToast(friendlyError(error, "Fullscreen could not be opened."), true); } });
+$("#openYoutubeExternalButton").addEventListener("click", async () => { if (state.playingSong?.youtubeUrl) try { await window.seraLibrary.openTrustedExternal(state.playingSong.youtubeUrl); } catch (error) { showToast(friendlyError(error), true); } });
 $("#lyricsAutoScroll").addEventListener("click", () => { state.lyricsAutoScroll = !state.lyricsAutoScroll; $("#lyricsAutoScroll").textContent = `Auto-scroll: ${state.lyricsAutoScroll ? "On" : "Off"}`; }); $("#lyricsMinus").addEventListener("click", () => { state.lyricsFontSize = Math.max(14, state.lyricsFontSize - 2); $("#lyricsDisplay").style.fontSize = `${state.lyricsFontSize}px`; }); $("#lyricsPlus").addEventListener("click", () => { state.lyricsFontSize = Math.min(42, state.lyricsFontSize + 2); $("#lyricsDisplay").style.fontSize = `${state.lyricsFontSize}px`; });
 
 $("#updatesButton").addEventListener("click", () => setView("updates")); $("#checkUpdatesButton").addEventListener("click", checkUpdates); $("#openReleaseButton").addEventListener("click", () => state.latestReleaseUrl && window.seraLibrary.openTrustedExternal(state.latestReleaseUrl)); $("#openRepositoryButton").addEventListener("click", async () => { if (!state.appInfo) await loadUpdatesPage(); window.seraLibrary.openTrustedExternal(state.appInfo.repositoryUrl); });
 if (navigator.mediaDevices?.addEventListener) navigator.mediaDevices.addEventListener("devicechange", () => { if (!$("#settingsModal").classList.contains("hidden")) refreshAudioDevices(); });
 
-setInterval(() => { if (state.mediaSource === "youtube" && youtubePlayer?.getCurrentTime) updateLyricsAt(youtubePlayer.getCurrentTime()); }, 100);
+setInterval(updateFooter, 100);
 loadUpdatesPage(); refreshLibrary();
