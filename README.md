@@ -6,7 +6,7 @@ An open-source, local-first Windows music player and organizer for downloaded mu
 
 - Scan multiple music folders without moving or rewriting originals.
 - Organize songs by persona, album, favorites, publication status, and configurable missing metadata.
-- Edit one song or mass edit persona, album, genre, and year.
+- Edit one song or safely mass edit persona, album, genre, year, and tags.
 - View artwork, details, prompts, notes, and lyrics on a full Now Playing page.
 - Import synchronized `.lrc`, `.vtt`, and `.srt` lyrics with line and word highlighting.
 - Read embedded ID3 synchronized lyrics and write them to published MP3 copies.
@@ -14,7 +14,8 @@ An open-source, local-first Windows music player and organizer for downloaded mu
 - Use built-in spectrum, waveform, radial, mirrored, and SERA.FM Cosmic visualizers.
 - Choose from audio output devices currently available in Windows.
 - Accept both `suno.com/song/...` and Link Only `suno.com/s/...` share links.
-- Publish managed copies with rewritten MP3 metadata, lyrics, artwork, and SERA.FM fields.
+- Publish self-contained managed copies with rewritten MP3 metadata, lyrics, artwork, SERA.FM fields, and a recovery manifest that does not depend on the original file.
+- Build queues, use previous/next/shuffle/repeat controls, and save local playlists.
 - Customize the interface theme and back up or restore the complete catalog.
 - Read patch notes and check GitHub Releases from inside the app.
 
@@ -46,7 +47,7 @@ npm run package:win
 
 ## Project status
 
-Version 0.3.0 is a functional preview. Suno page import and YouTube embedding depend on third-party page availability. Automatic lyric alignment and per-device Windows loopback visualization are planned; imported or embedded timings are supported now.
+Version 0.4.1 is a functional preview. Suno page import and YouTube embedding depend on third-party page availability. Automatic lyric alignment and per-device Windows loopback visualization are planned; imported or embedded timings are supported now.
 
 ## License
 
